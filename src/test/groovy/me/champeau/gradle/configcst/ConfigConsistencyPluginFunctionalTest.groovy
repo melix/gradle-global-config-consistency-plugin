@@ -23,9 +23,9 @@ class ConfigConsistencyPluginFunctionalTest extends Specification {
     }
 
     @Unroll
-    def "resolves the same versions in all configurations of a single project (#plugin)"() {
+    def "resolves the same versions in all configurations of a single project (#plugin, global=#global)"() {
         given:
-        WithPlugin(plugin)
+        withPlugin(plugin, global)
         file("foo/build.gradle") << """
             dependencies {
                 implementation("org.apache.commons:commons-lang3:3.0")
@@ -38,67 +38,123 @@ class ConfigConsistencyPluginFunctionalTest extends Specification {
 
         then:
         result.output.contains('org.apache.commons:commons-lang3:3.0 -> 3.3.1')
-        result.output.contains('By constraint : Global configuration consistency')
+        result.output.contains('By constraint : configuration resolution consistency')
 
         where:
-        plugin << [ 'base', 'java']
+        plugin | global
+        'base' | true
+        'base' | false
+        'java' | true
+        'java' | false
     }
 
     @Unroll
-    def "resolves the same versions in all configurations of distinct projects (#plugin)"() {
+    def "resolves the same versions in all configurations of distinct projects (#plugin, global=#global)"() {
         given:
-        WithPlugin(plugin)
+        withPlugin(plugin, global)
         file("foo/build.gradle") << """
             dependencies {
                 implementation("org.apache.commons:commons-lang3:3.0")
+                runtimeOnly("org.apache.commons:commons-lang3:3.3.1")
             }
         """
         file("bar/build.gradle") << """
             dependencies {
-                runtimeOnly("org.apache.commons:commons-lang3:3.3.1")
+                runtimeOnly("org.apache.commons:commons-lang3:3.3.2")
             }
         """
 
         when:
-        def result = resolve('foo')
+        def result1 = GradleRunner.create()
+                .withProjectDir(testProjectDir.root)
+                .withPluginClasspath()
+                .withArguments(":dependencies", "--configuration", "uberResolve")
+                .build()
 
         then:
-        result.output.contains('org.apache.commons:commons-lang3:3.0 -> 3.3.1')
-        result.output.contains('By constraint : Global configuration consistency')
+        println(result1.output)
+
+        when:
+        def result = resolve('foo')
+        def expectedVersion = "${global ? '3.3.2' : '3.3.1'}"
+
+        then:
+        result.output.contains("org.apache.commons:commons-lang3:3.0 -> $expectedVersion")
+        result.output.contains("org.apache.commons:commons-lang3:{strictly $expectedVersion} -> $expectedVersion")
+        result.output.contains('By constraint : configuration resolution consistency')
 
         when:
         result = resolve('bar', 'runtimeClasspath')
 
         then:
-        result.output.contains('org.apache.commons:commons-lang3:{strictly 3.3.1} -> 3.3.1')
-        result.output.contains('By constraint : Global configuration consistency')
+        result.output.contains('org.apache.commons:commons-lang3:{strictly 3.3.2} -> 3.3.2')
+        result.output.contains('By constraint : configuration resolution consistency')
 
         where:
-        plugin << [ 'base', 'java']
+        plugin | global
+        'base' | true
+        'base' | false
+        'java' | true
+        'java' | false
     }
 
-    private File withBasePlugin() {
-        buildFile << """
+    private File withBasePlugin(boolean global=true) {
+        if (global) {
+            buildFile << """
             plugins {
-                id "me.champeau.gradle.global.config.consistency-base"
+                id "me.champeau.gradle.config.consistency-base-global"
             }
+            """
+        } else {
+            buildFile << """
+            plugins {
+                id("me.champeau.gradle.config.consistency-base") apply(false)
+            }
+            allprojects {
+                apply plugin: "me.champeau.gradle.config.consistency-base"
+            }
+            """
+        }
+        buildFile << """
             allprojects {
                 repositories { jcenter() }
             }
-            globalConfigurationConsistency {
+            configurationConsistency {
                usage = 'java-runtime'
             }
             subprojects {
                 apply plugin: 'java-library'
             }
         """
+        if (!global) {
+            buildFile << """
+            subprojects {
+                configurationConsistency {
+                   usage = 'java-runtime'
+                }
+            }
+            """
+        }
     }
 
-    private File withJavaPlugin() {
-        buildFile << """
+    private File withJavaPlugin(boolean global=true) {
+        if (global) {
+            buildFile << """
             plugins {
-                id "me.champeau.gradle.global.config.consistency-java"
+                id "me.champeau.gradle.config.consistency-java-global"
             }
+            """
+        } else {
+            buildFile << """
+            plugins {
+                id("me.champeau.gradle.config.consistency-java") apply(false)
+            }
+            allprojects {
+                apply plugin: "me.champeau.gradle.config.consistency-java"
+            }
+            """
+        }
+        buildFile << """
             allprojects {
                 repositories { jcenter() }
             }
@@ -108,13 +164,13 @@ class ConfigConsistencyPluginFunctionalTest extends Specification {
         """
     }
 
-    void WithPlugin(String name) {
+    void withPlugin(String name, boolean global=true) {
         switch (name) {
             case 'java':
-                withJavaPlugin()
+                withJavaPlugin(global)
                 break
             case 'base':
-                withBasePlugin()
+                withBasePlugin(global)
                 break
         }
     }

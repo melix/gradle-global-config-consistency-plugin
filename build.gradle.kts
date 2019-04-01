@@ -22,13 +22,21 @@ version = "1.0"
 
 gradlePlugin {
     plugins {
-        register("configurationConsistencyPlugin") {
-            id = "me.champeau.gradle.global.config.consistency-base"
+        register("globalConfigurationConsistencyPlugin") {
+            id = "me.champeau.gradle.config.consistency-base-global"
             implementationClass = "me.champeau.gradle.configcst.BaseGlobalConfigConsistencyPlugin"
         }
-        register("configurationConsistencyPluginJava") {
-            id = "me.champeau.gradle.global.config.consistency-java"
+        register("glogalConfigurationConsistencyPluginJava") {
+            id = "me.champeau.gradle.config.consistency-java-global"
             implementationClass = "me.champeau.gradle.configcst.JavaGlobalConfigConsistencyPlugin"
+        }
+        register("localConfigurationConsistencyPlugin") {
+            id = "me.champeau.gradle.config.consistency-base"
+            implementationClass = "me.champeau.gradle.configcst.BaseLocalConfigConsistencyPlugin"
+        }
+        register("localConfigurationConsistencyPluginJava") {
+            id = "me.champeau.gradle.config.consistency-java"
+            implementationClass = "me.champeau.gradle.configcst.JavaLocalConfigConsistencyPlugin"
         }
     }
 }
