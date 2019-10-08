@@ -73,8 +73,8 @@ abstract class AbstractConfigConsistencyPlugin : Plugin<Project> {
     fun configureProjectResolution(target: Project, uberResolve: Configuration) {
         target.configurations.all {
             val cnf = this
-            if (isResolvableAndNot(uberResolve)) {
-                incoming.beforeResolve {
+            incoming.beforeResolve {
+                if (cnf != uberResolve) {
                     uberResolve.incoming.resolutionResult.allDependencies {
                         if (this is ResolvedDependencyResult && requested is ModuleComponentSelector) {
                             val s = selected.moduleVersion!!
@@ -92,11 +92,6 @@ abstract class AbstractConfigConsistencyPlugin : Plugin<Project> {
             }
         }
     }
-
-    private
-    fun Configuration.isResolvableAndNot(uberResolve: Configuration) = this != uberResolve
-            && isCanBeResolved
-            && !isCanBeConsumed
 
     private
     fun Project.createUberResolveConfiguration(extension: ConfigurationConsistencyExtension): Configuration = configurations.create("uberResolve") {
